@@ -9,7 +9,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.api import documents, imports  # noqa: E402
+from app.api import documents, imports, valuations  # noqa: E402
 from app.database import init_db  # noqa: E402
 from app.schemas.auction_schema import AuctionValuationRequest, AuctionValuationResponse  # noqa: E402
 from app.services.scoring_service import valuate_auction  # noqa: E402
@@ -43,3 +43,6 @@ def valuate(payload: AuctionValuationRequest) -> AuctionValuationResponse:
 
 app.include_router(imports.router)
 app.include_router(documents.router)
+app.include_router(valuations.router)
+
+init_db()
