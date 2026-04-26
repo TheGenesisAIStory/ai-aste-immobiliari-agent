@@ -1,0 +1,6 @@
+city,zona,link,prezzo,mq,offerta_minima,astato,occupato,piano,ascensore,spese,classe_energetica,link_perizia,note
+Bari,Poggiofranco,https://pvp.giustizia.it/esempio1,95000,75,71250,si,no,3,si,90,D,,
+Bari,Carrassi,https://pvp.giustizia.it/esempio2,120000,90,90000,si,si,2,no,110,F,,Occupato da inquilino
+Bari,Libertà,https://pvp.giustizia.it/esempio3,140000,100,105000,si,no,4,si,80,C,,Perizia disponibile
+Bari,Madonnella,https://pvp.giustizia.it/esempio4,80000,65,60000,si,no,1,no,60,G,,Piano terra
+Bari,San Pasquale,https://idealista.it/esempio5,165000,82,0,no,no,5,si,95,B,,Appartamento normale non asta

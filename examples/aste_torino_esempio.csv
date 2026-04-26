@@ -1,0 +1,6 @@
+city,zona,link,prezzo,mq,offerta_minima,astato,occupato,piano,ascensore,spese,classe_energetica,link_perizia,note
+Torino,Cit Turin,https://pvp.giustizia.it/to1,180000,70,135000,si,no,3,si,90,D,,
+Torino,Aurora,https://pvp.giustizia.it/to2,130000,65,97500,si,no,2,si,80,E,,Zona in riqualificazione
+Torino,Crocetta,https://pvp.giustizia.it/to3,270000,85,202500,si,no,4,si,110,B,,Pregio elevato
+Torino,Falchera,https://pvp.giustizia.it/to4,70000,60,52500,si,si,1,no,50,G,,Zona periferica difficile
+Torino,Vanchiglia,https://idealista.it/to5,210000,75,0,no,no,3,si,85,C,,Appartamento normale non asta

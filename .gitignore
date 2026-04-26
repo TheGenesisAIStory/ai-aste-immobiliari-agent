@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Venv
+venv/
+.env
+.venv/
+env/
+
+# Dati sensibili
+data/raw/*.csv
+data/output/*.csv
+data/output/prompts_llm/
+!data/raw/.gitkeep
+!data/output/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

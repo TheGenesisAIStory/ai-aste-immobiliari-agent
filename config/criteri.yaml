@@ -1,0 +1,60 @@
+# Criteri operativi per ricerca e valutazione immobili
+# Modifica questi parametri in base alla tua strategia
+
+bari:
+  prezzo_mq_max: 1800
+  prezzo_mq_target: 1400
+  zone_preferite:
+    - Poggiofranco
+    - Carrassi
+    - Libertà
+    - Japigia
+    - Madonnella
+    - San Pasquale
+    - Murattiano
+  zone_da_evitare:
+    - Stanic
+  spese_max: 150
+  piano_min: 1
+  ascensore: preferito
+  occupato: false  # preferisce immobili liberi
+  discount_minimo_aste: 0.20  # sconto minimo reale rispetto ai comparabili
+  score_rischio_max: 60
+
+torino:
+  prezzo_mq_max: 3200
+  prezzo_mq_target: 2600
+  zone_preferite:
+    - Cit Turin
+    - Crocetta
+    - San Salvario
+    - Aurora
+    - Vanchiglia
+    - Lingotto
+    - Porta Susa
+    - Santa Rita
+    - Mirafiori Nord
+  zone_da_evitare:
+    - Falchera
+    - Vallette
+  spese_max: 120
+  piano_min: 1
+  ascensore: obbligatorio
+  occupato: false
+  discount_minimo_aste: 0.15
+  score_rischio_max: 55
+
+# Pesi per score finale
+pesi_score:
+  posizione: 0.25
+  qualita_immobile: 0.20
+  convenienza_economica: 0.30
+  liquidabilita: 0.15
+  rischio: 0.10  # penalizzante: rischio alto abbassa lo score
+
+# Soglie verdetto finale
+verdetti:
+  offerta: 75          # score finale >= 75
+  approfondisci: 60    # score finale >= 60
+  monitora: 45         # score finale >= 45
+  scarta: 0            # sotto 45
