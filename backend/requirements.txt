@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-multipart
+requests
+beautifulsoup4
+pymupdf
+sqlalchemy
+pytest
+httpx
