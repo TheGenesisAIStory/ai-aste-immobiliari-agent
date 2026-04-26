@@ -17,8 +17,12 @@ env/
 data/raw/*.csv
 data/output/*.csv
 data/output/prompts_llm/
+data/raw/imports/
+data/raw/documents/
+data/processed/*.db
 !data/raw/.gitkeep
 !data/output/.gitkeep
+!data/processed/.gitkeep
 
 # OS
 .DS_Store
