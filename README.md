@@ -1,67 +1,52 @@
 # AI Aste Immobiliari Agent
 
-MVP per valutare aste immobiliari in Italia con backend FastAPI, dashboard Streamlit, import singola pagina URL/PDF, analisi documenti rule-based e base dati SQLite.
+MVP per valutare aste immobiliari in Italia con backend FastAPI, database SQLAlchemy, dashboard Streamlit con storico persistente, import URL/PDF e analisi perizie rule-based.
 
-Il progetto non esegue crawler e non richiede obbligatoriamente API OpenAI: le funzioni attuali usano regole semplici e trasparenti per produrre una prima valutazione operativa.
+Il progetto non fa crawling multipagina, non richiede obbligatoriamente API OpenAI e non inventa dati mancanti: dove le regole non estraggono un campo, il valore resta da completare manualmente.
 
 ## Funzionalita
 
-- Valutazione economica asta con score, rendimento lordo, sconto stimato e raccomandazione.
-- Import di una singola pagina URL con estrazione testo via BeautifulSoup.
-- Upload PDF asta con estrazione testo via PyMuPDF.
-- Parsing MVP di testi d'asta per campi come citta, indirizzo, offerta minima, mq, data asta e tribunale.
-- Upload documento/perizia PDF con chunking, parole chiave di rischio e livello rischio.
-- Persistenza predisposta con SQLAlchemy e SQLite.
-- Dashboard Streamlit che chiama il backend via `BACKEND_URL` e gestisce backend offline.
+- Valutazione asta con score, margine, ROI, rendimento da affitto e raccomandazione.
+- Storico persistente di valutazioni via SQLite locale o PostgreSQL tramite `DATABASE_URL`.
+- Import singola pagina URL con salvataggio record e parsing campi asta.
+- Upload PDF asta con estrazione testo PyMuPDF, parsing e storico import.
+- Analisi perizie PDF con OCR opzionale, campi con evidence, red flag strutturate, sintesi operativa e bozza valutazione.
+- Q&A locale sui documenti caricati tramite RAG keyword offline e LLM opzionale.
+- Dashboard Streamlit con preview, salvataggio, filtri, detail, delete, export CSV/JSON.
 
-## Struttura Repo
-
-```text
-ai-aste-immobiliari-agent/
-├── backend/
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── database.py
-│   │   ├── models.py
-│   │   ├── api/
-│   │   │   ├── imports.py
-│   │   │   └── documents.py
-│   │   ├── services/
-│   │   │   ├── scoring_service.py
-│   │   │   ├── import_service.py
-│   │   │   ├── parser_service.py
-│   │   │   ├── document_service.py
-│   │   │   └── document_agent.py
-│   │   └── schemas/
-│   │       ├── auction_schema.py
-│   │       ├── import_schema.py
-│   │       └── document_schema.py
-│   ├── tests/
-│   └── requirements.txt
-├── frontend/
-│   ├── streamlit_app.py
-│   └── requirements.txt
-├── data/
-│   ├── raw/
-│   └── processed/
-├── docker-compose.yml
-├── README.md
-├── .env.example
-└── .gitignore
-```
-
-Le cartelle legacy `scripts/`, `prompts/`, `examples/` e `config/` restano nel repository come materiale utile della pipeline iniziale.
-
-## Quick Start Backend
+## Setup Locale
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r backend/requirements.txt
+pip install -r frontend/requirements.txt
+```
+
+Copia `.env.example` in `.env` se vuoi personalizzare:
+
+```text
+APP_ENV=development
+DATABASE_URL=sqlite:///./data/processed/app.db
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o-mini
+LLM_ENABLED=false
+LLM_MAX_CHARS=60000
+MAX_UPLOAD_MB=15
+OCR_MAX_PAGES=10
+IMPORT_TIMEOUT_SECONDS=20
+IMPORT_MAX_MB=15
+BACKEND_URL=http://127.0.0.1:8000
+```
+
+## Backend
+
+```bash
+source .venv/bin/activate
 uvicorn backend.app.main:app --reload
 ```
 
-Verifica:
+Verifiche import:
 
 ```bash
 python -c "from backend.app.main import app; print(app.title)"
@@ -69,30 +54,68 @@ cd backend
 python -c "from app.main import app; print(app.title)"
 ```
 
-## Quick Start Frontend
+Il backend crea automaticamente `data/processed/`, le tabelle DB e, in sviluppo SQLite, aggiunge colonne mancanti non distruttive per mantenere compatibilita con DB locali precedenti.
+
+## Frontend
 
 ```bash
 source .venv/bin/activate
-pip install -r frontend/requirements.txt
 BACKEND_URL=http://127.0.0.1:8000 streamlit run frontend/streamlit_app.py
 ```
 
-Se `BACKEND_URL` non e impostato, la dashboard usa `http://127.0.0.1:8000`.
+Tab disponibili:
+
+- Valuta asta
+- Storico valutazioni
+- Import URL/PDF
+- Analisi perizia avanzata
+- Q&A documento
+- Documenti analizzati
+- Info progetto
+
+## Database
+
+Default locale:
+
+```text
+DATABASE_URL=sqlite:///./data/processed/app.db
+```
+
+Per PostgreSQL usa una URL SQLAlchemy compatibile, per esempio:
+
+```text
+DATABASE_URL=postgresql+psycopg2://user:password@host:5432/dbname
+```
 
 ## Endpoint API
 
 | Metodo | Endpoint | Descrizione |
 |---|---|---|
-| GET | `/` | Info base API |
+| GET | `/` | Info API |
 | GET | `/health` | Health check |
-| POST | `/valuate` | Valutazione asta |
-| POST | `/imports/url` | Import singola pagina URL |
-| POST | `/imports/pdf` | Import PDF asta |
-| POST | `/imports/parse` | Parsing testo asta |
+| POST | `/valuate` | Calcola valutazione senza salvare |
+| POST | `/valuations` | Calcola e salva valutazione |
+| GET | `/valuations` | Lista valutazioni |
+| GET | `/valuations/{id}` | Dettaglio valutazione |
+| DELETE | `/valuations/{id}` | Elimina record valutazione |
+| POST | `/imports/url` | Import singolo URL, parse e salvataggio |
+| POST | `/imports/pdf` | Import PDF asta, parse e salvataggio |
+| POST | `/imports/parse` | Parsing testo senza salvataggio |
 | POST | `/imports/valuate-draft` | Bozza campi per valutazione |
-| POST | `/documents/upload` | Upload e analisi documento PDF |
+| GET | `/imports` | Lista import |
+| GET | `/imports/{id}` | Dettaglio import |
+| DELETE | `/imports/{id}` | Elimina record import |
+| POST | `/documents/upload` | Upload e analisi perizia PDF con salvataggio |
+| GET | `/documents` | Lista documenti analizzati |
+| GET | `/documents/{id}` | Dettaglio documento |
+| POST | `/documents/{id}/ask` | Domanda RAG sul documento |
+| GET | `/documents/{id}/chunks` | Chunks indicizzati |
+| POST | `/documents/{id}/reindex` | Ricrea indice RAG locale |
+| DELETE | `/documents/{id}` | Elimina record documento |
 
-### Esempio `/valuate`
+## Esempi Curl
+
+Preview senza salvataggio:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/valuate \
@@ -113,7 +136,23 @@ curl -X POST http://127.0.0.1:8000/valuate \
   }'
 ```
 
-### Esempio import URL
+Salvataggio storico:
+
+```bash
+curl -X POST http://127.0.0.1:8000/valuations \
+  -H "Content-Type: application/json" \
+  -d @payload.json
+```
+
+Liste:
+
+```bash
+curl http://127.0.0.1:8000/valuations
+curl http://127.0.0.1:8000/imports
+curl http://127.0.0.1:8000/documents
+```
+
+Import URL:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/imports/url \
@@ -121,30 +160,55 @@ curl -X POST http://127.0.0.1:8000/imports/url \
   -d '{"source_url": "https://example.com/asta"}'
 ```
 
-### Esempio upload PDF
+Upload PDF asta:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/imports/pdf \
+  -F "file=@avviso.pdf"
+```
+
+Upload perizia:
+
+```bash
+curl -X POST http://127.0.0.1:8000/documents/upload \
   -F "file=@perizia.pdf"
 ```
 
-## Configurazione `.env`
+Q&A documento:
 
-Copia `.env.example` in `.env` se vuoi personalizzare:
-
-```text
-DATABASE_URL=sqlite:///./data/processed/app.db
-BACKEND_URL=http://127.0.0.1:8000
+```bash
+curl -X POST http://127.0.0.1:8000/documents/1/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"L immobile è occupato?"}'
 ```
 
-Il backend crea automaticamente le cartelle e le tabelle SQLite necessarie all'avvio o al primo uso.
+## OCR, LLM e RAG
 
-## Note su PDF e URL
+OCR e opzionale. Il backend prova prima l'estrazione nativa PyMuPDF; se una pagina ha poco testo, renderizza la pagina e prova Tesseract fino a `OCR_MAX_PAGES`.
 
-- L'import URL scarica una sola pagina, senza crawling.
-- Il PDF massimo accettato e 15 MB.
-- I file importati vengono salvati sotto `data/raw/imports/` o `data/raw/documents/`.
-- L'estrazione testo dipende dalla qualita del PDF: scansioni senza OCR possono produrre testo vuoto.
+Installazione Tesseract su macOS:
+
+```bash
+brew install tesseract tesseract-lang
+```
+
+Se Tesseract non e disponibile, l'API non va in crash e restituisce un warning.
+
+LLM e opzionale: viene usato solo con `LLM_ENABLED=true` e `OPENAI_API_KEY` presente. Se fallisce, il sistema torna al fallback rule-based. L'output resta JSON validato e non deve inventare dati mancanti.
+
+RAG locale: dopo upload documento, il testo viene spezzato in chunk salvati in `data/processed/rag_index/`. Se il LLM non e disponibile, `/documents/{id}/ask` usa keyword retrieval e restituisce citazioni testuali. Le risposte non usano conoscenza esterna.
+
+## Docker Compose
+
+```bash
+docker compose up
+```
+
+Il servizio installa le dipendenze backend e avvia:
+
+```bash
+uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
+```
 
 ## Test
 
@@ -153,33 +217,16 @@ source .venv/bin/activate
 pytest backend/tests
 ```
 
-I test coprono health check, valutazione, parsing testo, import PDF e upload documento PDF.
+La suite copre DB SQLite temporaneo, CRUD valutazioni, 404, `/valuate` non persistente, import URL mockato, import PDF, upload documento, red flag e confidence Document AI.
 
-## Deploy Base
+## Limiti Noti
 
-Avvio locale con Docker Compose:
-
-```bash
-docker compose up
-```
-
-Per un deploy applicativo, esporre il backend FastAPI con:
-
-```bash
-uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
-```
-
-e configurare `DATABASE_URL` verso SQLite persistente o un database compatibile SQLAlchemy.
-
-## Roadmap
-
-- Salvare valutazioni, import e documenti in database tramite repository dedicati.
-- Aggiungere autenticazione e gestione utenti.
-- Migliorare parser documenti con OCR opzionale.
-- Introdurre comparabili di mercato verificati e aggiornabili.
-- Aggiungere job asincroni per import PDF pesanti.
-- Preparare CI GitHub Actions con lint e test.
+- Import URL limitato a una sola pagina, con redirect standard e limite dimensione.
+- Nessun crawler o scraping pesante.
+- OCR dipende da Tesseract installato nel sistema.
+- L'analisi documentale rule-based resta sempre disponibile; `OPENAI_API_KEY` e opzionale.
+- Delete documento/import prova a eliminare anche file fisici; se mancano non fallisce.
 
 ## Disclaimer
 
-Questo software e un supporto informativo e sperimentale. Non costituisce consulenza finanziaria, legale, fiscale o immobiliare. Prima di partecipare a un'asta verifica sempre perizia, ordinanza, stato occupazionale, vincoli, costi e rischi con professionisti qualificati.
+Questo software e un supporto informativo e sperimentale. Non costituisce consulenza finanziaria, legale, fiscale o immobiliare. Prima di partecipare a un'asta verifica perizia, ordinanza, stato occupazionale, vincoli, costi e rischi con professionisti qualificati.

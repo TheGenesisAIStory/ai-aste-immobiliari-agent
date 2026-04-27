@@ -9,3 +9,5 @@ pymupdf
 sqlalchemy
 pytest
 httpx
+pillow
+pytesseract
