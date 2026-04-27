@@ -81,7 +81,14 @@ def _migrate_sqlite_dev_schema() -> None:
             "notes": "TEXT",
             "created_at": "DATETIME",
             "updated_at": "DATETIME",
-        }
+        },
+        "document_analyses": {
+            "analysis_mode": "VARCHAR",
+            "ocr_used": "VARCHAR",
+            "ocr_pages_json": "TEXT",
+            "text_extraction_method": "VARCHAR",
+            "warnings_json": "TEXT",
+        },
     }
     with engine.begin() as connection:
         for table, columns in expected_columns.items():

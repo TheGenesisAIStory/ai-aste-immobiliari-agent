@@ -52,6 +52,11 @@ class DocumentAnalysis(Base, TimestampMixin):
     red_flags_json = Column(Text, default="[]")
     missing_fields_json = Column(Text, default="[]")
     confidence = Column(String, default="bassa")
+    analysis_mode = Column(String, default="rule_based")
+    ocr_used = Column(String, default="false")
+    ocr_pages_json = Column(Text, default="[]")
+    text_extraction_method = Column(String, default="native")
+    warnings_json = Column(Text, default="[]")
 
 
 class ImportRecord(Base, TimestampMixin):

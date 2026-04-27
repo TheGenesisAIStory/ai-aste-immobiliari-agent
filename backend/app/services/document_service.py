@@ -8,6 +8,8 @@ from typing import List, Tuple
 
 import fitz
 
+from app.services.ocr_service import OCRResult, extract_text_with_optional_ocr
+
 BASE_DIR = Path(__file__).resolve().parents[3]
 DOC_DIR = BASE_DIR / "data" / "raw" / "documents"
 DOC_DIR.mkdir(parents=True, exist_ok=True)
@@ -41,12 +43,17 @@ def save_pdf(file_bytes: bytes, filename: str) -> Tuple[str, str]:
     return document_id, str(path)
 
 
-def extract_text(path: str) -> Tuple[str, int]:
+def extract_text_with_metadata(path: str) -> Tuple[str, int, OCRResult]:
     doc = fitz.open(path)
-    texts = []
-    for page in doc:
-        texts.append(page.get_text())
-    return normalize_text("\n".join(texts)), len(doc)
+    page_count = len(doc)
+    doc.close()
+    result = extract_text_with_optional_ocr(path)
+    return normalize_text(result.text), page_count, result
+
+
+def extract_text(path: str) -> Tuple[str, int]:
+    text, pages, _ = extract_text_with_metadata(path)
+    return text, pages
 
 
 def chunk_text(text: str, size: int = 1000) -> List[str]:

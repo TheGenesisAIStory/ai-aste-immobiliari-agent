@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import re
+import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+from app.services.llm_document_agent import analyze_with_llm
 
 KEY_FIELDS = ["city", "address", "surface_sqm", "minimum_bid", "auction_date", "occupation_status"]
 
@@ -241,7 +244,35 @@ def _valuation_draft(fields: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def analyze_document(text: str) -> Dict[str, Any]:
+def _field_evidence(text: str, value: Any) -> str:
+    if value in (None, "", False):
+        return ""
+    if isinstance(value, bool):
+        return ""
+    snippet = _snippet(text, re.escape(str(value)))
+    return snippet or str(value)[:160]
+
+
+def fields_with_metadata(fields: Dict[str, Any], text: str, source: str = "rule_based") -> Dict[str, Dict[str, Any]]:
+    result = {}
+    for key, value in fields.items():
+        present = value not in (None, "", "sconosciuto")
+        result[key] = {
+            "value": value,
+            "confidence": "media" if present else "bassa",
+            "evidence": _field_evidence(text, value),
+            "source": source,
+        }
+    return result
+
+
+def analyze_document(
+    text: str,
+    document_id: Optional[str] = None,
+    filename: Optional[str] = None,
+    ocr_metadata: Optional[Dict[str, Any]] = None,
+    use_llm: bool = True,
+) -> Dict[str, Any]:
     normalized = normalize_text(text)
     fields = extract_fields(normalized)
     red_flags = detect_red_flags(normalized)
@@ -257,15 +288,43 @@ def analyze_document(text: str) -> Dict[str, Any]:
     if not normalized:
         notes.append("Testo vuoto o non leggibile: possibile PDF scansito senza OCR.")
 
+    llm_output = analyze_with_llm(normalized) if use_llm else None
+    analysis_mode = "rule_based"
+    field_payload = fields_with_metadata(fields, normalized)
+    if llm_output is not None:
+        analysis_mode = "hybrid"
+        for key, value in llm_output.fields.items():
+            field_payload[key] = value.dict()
+        if llm_output.red_flags:
+            red_flags = [flag.dict() for flag in llm_output.red_flags]
+        if llm_output.missing_fields:
+            missing = llm_output.missing_fields
+        if llm_output.summary:
+            summary = llm_output.summary
+        else:
+            summary = _summary(fields, red_flags, missing)
+        confidence = llm_output.confidence or confidence
+    else:
+        summary = _summary(fields, red_flags, missing)
+
+    ocr_metadata = ocr_metadata or {}
     return {
-        "summary": _summary(fields, red_flags, missing),
+        "document_id": document_id or uuid.uuid4().hex,
+        "filename": filename,
+        "analysis_mode": analysis_mode,
+        "fields": field_payload,
+        "summary": summary,
         "extracted_fields": fields,
         "sections": _sections(normalized),
         "red_flags": red_flags,
         "missing_fields": missing,
         "risk_level": risk_level,
         "confidence": confidence,
+        "ocr_used": bool(ocr_metadata.get("ocr_used", False)),
+        "ocr_pages": ocr_metadata.get("ocr_pages", []),
+        "text_extraction_method": ocr_metadata.get("text_extraction_method", "native"),
+        "warnings": ocr_metadata.get("warnings", []),
+        "rag_available": False,
         "valuation_draft": _valuation_draft(fields),
         "notes": notes,
     }
-

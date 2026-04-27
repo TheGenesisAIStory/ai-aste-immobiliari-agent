@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import List
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -16,7 +17,7 @@ from app.schemas.import_schema import (
     UrlImportResponse,
     ValuateDraftRequest,
 )
-from app.services.import_service import import_from_pdf, import_from_url
+from app.services.import_service import import_from_pdf, import_from_url_advanced
 from app.services.parser_service import parse_auction_text
 
 router = APIRouter(prefix="/imports", tags=["imports"])
@@ -44,7 +45,8 @@ def _to_read(record) -> ImportRecordRead:
 @router.post("/url", response_model=UrlImportResponse)
 def import_url(payload: UrlImportRequest, db: Session = Depends(get_db)):
     try:
-        import_id, path, text = import_from_url(str(payload.source_url))
+        imported = import_from_url_advanced(str(payload.source_url))
+        import_id, path, text = imported.import_id, imported.saved_path, imported.text
         parsed = parse_auction_text(text, str(payload.source_url))
         record = import_repository.create_import_record(
             db=db,
@@ -75,6 +77,12 @@ def import_url(payload: UrlImportRequest, db: Session = Depends(get_db)):
         "missing_fields": parsed["missing_fields"],
         "risk_keywords": parsed["risk_keywords"],
         "confidence": parsed["confidence"],
+        "http_metadata": {
+            "status_code": imported.status_code,
+            "content_type": imported.content_type,
+            "final_url": imported.final_url,
+            "source_kind": imported.source_kind,
+        },
     }
 
 
@@ -156,6 +164,20 @@ def get_import(import_id: int, db: Session = Depends(get_db)):
 
 @router.delete("/{import_id}")
 def delete_import(import_id: int, db: Session = Depends(get_db)):
-    if not import_repository.delete_import(db, import_id):
+    record = import_repository.get_import(db, import_id)
+    if record is None:
         raise HTTPException(status_code=404, detail="Import non trovato")
-    return {"status": "deleted", "id": import_id}
+    deleted_file = False
+    if record.saved_path:
+        path = Path(record.saved_path)
+        if path.exists():
+            path.unlink()
+            deleted_file = True
+    import_repository.delete_import(db, import_id)
+    return {
+        "status": "deleted",
+        "id": import_id,
+        "deleted_record": True,
+        "deleted_file": deleted_file,
+        "deleted_chunks": 0,
+    }

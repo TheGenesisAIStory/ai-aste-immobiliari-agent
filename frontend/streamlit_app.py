@@ -25,10 +25,10 @@ def request_json(method: str, path: str, payload: Optional[dict] = None) -> Tupl
         return None, f"Errore backend: {exc}. {detail}"
 
 
-def post_file(path: str, field: str, uploaded_file) -> Tuple[Optional[dict], Optional[str]]:
+def post_file(path: str, field: str, uploaded_file, data: Optional[dict] = None) -> Tuple[Optional[dict], Optional[str]]:
     try:
         files = {field: (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
-        response = requests.post(f"{BACKEND_URL}{path}", files=files, timeout=60)
+        response = requests.post(f"{BACKEND_URL}{path}", files=files, data=data, timeout=60)
         response.raise_for_status()
         return response.json(), None
     except requests.RequestException as exc:
@@ -102,7 +102,8 @@ tabs = st.tabs([
     "Valuta asta",
     "Storico valutazioni",
     "Import URL/PDF",
-    "Analisi perizia",
+    "Analisi perizia avanzata",
+    "Q&A documento",
     "Documenti analizzati",
     "Info progetto",
 ])
@@ -181,18 +182,31 @@ with tabs[2]:
 
 with tabs[3]:
     perizia = st.file_uploader("PDF perizia", type=["pdf"], key="document_pdf")
+    use_llm = st.checkbox("Usa LLM se disponibile", value=False)
     analysis = None
     if st.button("Analizza perizia") and perizia:
-        analysis, error = post_file("/documents/upload", "file", perizia)
+        analysis, error = post_file("/documents/upload", "file", perizia, data={"use_llm": str(use_llm).lower()})
         show_error(error)
     if analysis:
         st.subheader("Sintesi")
         st.write(analysis.get("summary"))
-        st.metric("Confidence", analysis.get("confidence", "-"))
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Confidence", analysis.get("confidence", "-"))
+        c2.metric("Modalita", analysis.get("analysis_mode", "-"))
+        c3.metric("OCR usato", "si" if analysis.get("ocr_used") else "no")
+        c4.metric("Metodo testo", analysis.get("text_extraction_method", "-"))
+        if analysis.get("ocr_pages"):
+            st.caption(f"Pagine OCR: {analysis.get('ocr_pages')}")
+        if analysis.get("warnings"):
+            st.warning(" | ".join(analysis.get("warnings")))
+        st.subheader("Campi con evidence")
+        st.dataframe(pd.DataFrame.from_dict(analysis.get("fields") or {}, orient="index"), use_container_width=True)
+        st.subheader("Red flags")
+        st.dataframe(pd.DataFrame(analysis.get("red_flags") or []), use_container_width=True)
         st.json({
             "extracted_fields": analysis.get("extracted_fields"),
-            "red_flags": analysis.get("red_flags"),
             "missing_fields": analysis.get("missing_fields"),
+            "rag_available": analysis.get("rag_available"),
         })
         st.subheader("Bozza valutazione")
         draft = analysis.get("valuation_draft") or {}
@@ -201,6 +215,32 @@ with tabs[3]:
             save_valuation_from_payload(completed)
 
 with tabs[4]:
+    docs, error = request_json("GET", "/documents")
+    if show_error(error):
+        docs = []
+    if not docs:
+        st.info("Nessun documento disponibile per Q&A.")
+    else:
+        options = {f"{doc['id']} - {doc['filename']}": doc["id"] for doc in docs}
+        selected = st.selectbox("Documento", list(options.keys()))
+        question = st.text_input("Domanda sul documento", "L'immobile è occupato?")
+        if st.button("Chiedi al documento"):
+            answer, ask_error = request_json("POST", f"/documents/{options[selected]}/ask", {"question": question})
+            if not show_error(ask_error) and answer:
+                st.metric("Modalita", answer.get("mode", "-"))
+                st.write(answer.get("answer"))
+                with st.expander("Citazioni"):
+                    st.json(answer.get("citations"))
+        if st.button("Mostra chunks"):
+            chunks, chunk_error = request_json("GET", f"/documents/{options[selected]}/chunks")
+            if not show_error(chunk_error):
+                st.dataframe(pd.DataFrame(chunks), use_container_width=True)
+        if st.button("Reindicizza documento"):
+            reindexed, reindex_error = request_json("POST", f"/documents/{options[selected]}/reindex")
+            if not show_error(reindex_error):
+                st.success(f"Chunks creati: {reindexed.get('chunks', 0)}")
+
+with tabs[5]:
     docs, error = request_json("GET", "/documents")
     if show_error(error):
         docs = []
@@ -216,21 +256,26 @@ with tabs[4]:
                 st.json(detail)
                 st.download_button("Export JSON", json.dumps(detail, indent=2, ensure_ascii=False), f"document_{doc_id}.json", "application/json")
         if st.button("Elimina documento"):
-            _, delete_error = request_json("DELETE", f"/documents/{doc_id}")
+            deleted, delete_error = request_json("DELETE", f"/documents/{doc_id}")
             if not show_error(delete_error):
-                st.success(f"Documento {doc_id} eliminato.")
+                st.success(
+                    f"Documento {doc_id} eliminato. "
+                    f"File: {deleted.get('deleted_file')}; chunks: {deleted.get('deleted_chunks')}"
+                )
 
-with tabs[5]:
+with tabs[6]:
     st.markdown(
         """
         MVP per valutazione aste immobiliari con backend FastAPI, SQLite/PostgreSQL via SQLAlchemy,
-        import URL/PDF, analisi perizie rule-based e dashboard Streamlit con storico persistente.
+        import URL/PDF, OCR opzionale, LLM opzionale, RAG locale e dashboard Streamlit con storico persistente.
 
         Endpoint principali:
-        `/health`, `/valuate`, `/valuations`, `/imports/url`, `/imports/pdf`, `/imports`, `/documents/upload`, `/documents`.
+        `/health`, `/valuate`, `/valuations`, `/imports/url`, `/imports/pdf`, `/imports`,
+        `/documents/upload`, `/documents`, `/documents/{id}/ask`, `/documents/{id}/chunks`.
 
         Limiti noti:
-        l'import URL scarica una sola pagina, non fa crawling; PDF scansiti senza OCR possono produrre testo povero;
+        l'import URL scarica una sola pagina, non fa crawling; OCR richiede Tesseract installato;
+        LLM e embeddings sono opzionali;
         le stime non sostituiscono verifiche professionali.
 
         Disclaimer:

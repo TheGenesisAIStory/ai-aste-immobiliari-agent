@@ -26,6 +26,11 @@ def create_document_analysis(
         red_flags_json=json.dumps(analysis.get("red_flags", []), ensure_ascii=False),
         missing_fields_json=json.dumps(analysis.get("missing_fields", []), ensure_ascii=False),
         confidence=analysis.get("confidence", "bassa"),
+        analysis_mode=analysis.get("analysis_mode", "rule_based"),
+        ocr_used="true" if analysis.get("ocr_used") else "false",
+        ocr_pages_json=json.dumps(analysis.get("ocr_pages", []), ensure_ascii=False),
+        text_extraction_method=analysis.get("text_extraction_method", "native"),
+        warnings_json=json.dumps(analysis.get("warnings", []), ensure_ascii=False),
     )
     db.add(record)
     db.commit()

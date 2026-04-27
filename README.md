@@ -10,7 +10,8 @@ Il progetto non fa crawling multipagina, non richiede obbligatoriamente API Open
 - Storico persistente di valutazioni via SQLite locale o PostgreSQL tramite `DATABASE_URL`.
 - Import singola pagina URL con salvataggio record e parsing campi asta.
 - Upload PDF asta con estrazione testo PyMuPDF, parsing e storico import.
-- Analisi perizie PDF con campi estratti, red flag strutturate, sintesi operativa e bozza valutazione.
+- Analisi perizie PDF con OCR opzionale, campi con evidence, red flag strutturate, sintesi operativa e bozza valutazione.
+- Q&A locale sui documenti caricati tramite RAG keyword offline e LLM opzionale.
 - Dashboard Streamlit con preview, salvataggio, filtri, detail, delete, export CSV/JSON.
 
 ## Setup Locale
@@ -28,7 +29,13 @@ Copia `.env.example` in `.env` se vuoi personalizzare:
 APP_ENV=development
 DATABASE_URL=sqlite:///./data/processed/app.db
 OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o-mini
+LLM_ENABLED=false
+LLM_MAX_CHARS=60000
 MAX_UPLOAD_MB=15
+OCR_MAX_PAGES=10
+IMPORT_TIMEOUT_SECONDS=20
+IMPORT_MAX_MB=15
 BACKEND_URL=http://127.0.0.1:8000
 ```
 
@@ -61,7 +68,8 @@ Tab disponibili:
 - Valuta asta
 - Storico valutazioni
 - Import URL/PDF
-- Analisi perizia
+- Analisi perizia avanzata
+- Q&A documento
 - Documenti analizzati
 - Info progetto
 
@@ -100,6 +108,9 @@ DATABASE_URL=postgresql+psycopg2://user:password@host:5432/dbname
 | POST | `/documents/upload` | Upload e analisi perizia PDF con salvataggio |
 | GET | `/documents` | Lista documenti analizzati |
 | GET | `/documents/{id}` | Dettaglio documento |
+| POST | `/documents/{id}/ask` | Domanda RAG sul documento |
+| GET | `/documents/{id}/chunks` | Chunks indicizzati |
+| POST | `/documents/{id}/reindex` | Ricrea indice RAG locale |
 | DELETE | `/documents/{id}` | Elimina record documento |
 
 ## Esempi Curl
@@ -163,6 +174,30 @@ curl -X POST http://127.0.0.1:8000/documents/upload \
   -F "file=@perizia.pdf"
 ```
 
+Q&A documento:
+
+```bash
+curl -X POST http://127.0.0.1:8000/documents/1/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"L immobile è occupato?"}'
+```
+
+## OCR, LLM e RAG
+
+OCR e opzionale. Il backend prova prima l'estrazione nativa PyMuPDF; se una pagina ha poco testo, renderizza la pagina e prova Tesseract fino a `OCR_MAX_PAGES`.
+
+Installazione Tesseract su macOS:
+
+```bash
+brew install tesseract tesseract-lang
+```
+
+Se Tesseract non e disponibile, l'API non va in crash e restituisce un warning.
+
+LLM e opzionale: viene usato solo con `LLM_ENABLED=true` e `OPENAI_API_KEY` presente. Se fallisce, il sistema torna al fallback rule-based. L'output resta JSON validato e non deve inventare dati mancanti.
+
+RAG locale: dopo upload documento, il testo viene spezzato in chunk salvati in `data/processed/rag_index/`. Se il LLM non e disponibile, `/documents/{id}/ask` usa keyword retrieval e restituisce citazioni testuali. Le risposte non usano conoscenza esterna.
+
 ## Docker Compose
 
 ```bash
@@ -186,11 +221,11 @@ La suite copre DB SQLite temporaneo, CRUD valutazioni, 404, `/valuate` non persi
 
 ## Limiti Noti
 
-- Import URL limitato a una sola pagina.
+- Import URL limitato a una sola pagina, con redirect standard e limite dimensione.
 - Nessun crawler o scraping pesante.
-- PDF scansiti senza OCR possono produrre testo povero.
-- L'analisi documentale e rule-based; `OPENAI_API_KEY` resta opzionale e non necessaria.
-- Delete elimina record DB, non file fisici salvati in `data/raw/`.
+- OCR dipende da Tesseract installato nel sistema.
+- L'analisi documentale rule-based resta sempre disponibile; `OPENAI_API_KEY` e opzionale.
+- Delete documento/import prova a eliminare anche file fisici; se mancano non fallisce.
 
 ## Disclaimer
 
