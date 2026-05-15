@@ -1,29 +1,76 @@
 from __future__ import annotations
 
-from sqlalchemy import Column, Integer, String, Float, Text
+from datetime import datetime
+
+from sqlalchemy import Column, DateTime, Float, Integer, String, Text
 
 from app.database import Base
 
 
-class Document(Base):
-    __tablename__ = "documents"
-
-    id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(String, unique=True, index=True)
-    filename = Column(String)
-    path = Column(String)
-    page_count = Column(Integer)
-    risk_level = Column(String)
-    red_flags = Column(Text)
-    summary = Column(Text)
+class TimestampMixin:
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
-class Valuation(Base):
+class Valuation(Base, TimestampMixin):
     __tablename__ = "valuations"
 
     id = Column(Integer, primary_key=True, index=True)
-    city = Column(String)
+    city = Column(String, nullable=False)
+    zone = Column(String)
     address = Column(String)
-    score = Column(Float)
-    roi = Column(Float)
-    recommendation = Column(String)
+    minimum_bid = Column(Float, nullable=False)
+    surface_sqm = Column(Float, nullable=False)
+    estimated_market_price_per_sqm = Column(Float, nullable=False)
+    renovation_cost = Column(Float, default=0)
+    other_costs = Column(Float, default=0)
+    expected_monthly_rent = Column(Float, default=0)
+    occupation_status = Column(String, default="sconosciuto")
+    legal_risk = Column(String, default="medio")
+    technical_risk = Column(String, default="medio")
+    market_value_estimate = Column(Float, nullable=False)
+    total_cost = Column(Float, nullable=False)
+    gross_margin = Column(Float, nullable=False)
+    gross_roi = Column(Float, nullable=False)
+    rental_yield = Column(Float, nullable=False)
+    score = Column(Float, nullable=False)
+    recommendation = Column(String, nullable=False)
+    confidence = Column(String, default="media")
+    notes = Column(Text, default="[]")
+
+
+class DocumentAnalysis(Base, TimestampMixin):
+    __tablename__ = "document_analyses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String, nullable=False)
+    saved_path = Column(String, nullable=False)
+    page_count = Column(Integer, default=0)
+    extracted_text_preview = Column(Text, default="")
+    summary = Column(Text, default="")
+    extracted_fields_json = Column(Text, default="{}")
+    red_flags_json = Column(Text, default="[]")
+    missing_fields_json = Column(Text, default="[]")
+    confidence = Column(String, default="bassa")
+    analysis_mode = Column(String, default="rule_based")
+    ocr_used = Column(String, default="false")
+    ocr_pages_json = Column(Text, default="[]")
+    text_extraction_method = Column(String, default="native")
+    warnings_json = Column(Text, default="[]")
+
+
+class ImportRecord(Base, TimestampMixin):
+    __tablename__ = "import_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_type = Column(String, nullable=False)
+    source_url = Column(String)
+    filename = Column(String)
+    saved_path = Column(String)
+    extracted_text_preview = Column(Text, default="")
+    parsed_fields_json = Column(Text, default="{}")
+    risk_keywords_json = Column(Text, default="[]")
+    missing_fields_json = Column(Text, default="[]")
+    confidence = Column(String, default="bassa")
+    status = Column(String, default="ok")
+    error_message = Column(Text)

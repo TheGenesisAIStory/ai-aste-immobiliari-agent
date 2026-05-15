@@ -20,9 +20,11 @@ data/output/prompts_llm/
 data/raw/imports/
 data/raw/documents/
 data/processed/*.db
+data/processed/rag_index/*
 !data/raw/.gitkeep
 !data/output/.gitkeep
 !data/processed/.gitkeep
+!data/processed/rag_index/.gitkeep
 
 # OS
 .DS_Store

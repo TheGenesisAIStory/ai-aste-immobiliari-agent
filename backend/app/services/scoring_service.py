@@ -39,10 +39,15 @@ def valuate_auction(payload: AuctionValuationRequest) -> AuctionValuationRespons
     estimated_market_value = payload.surface_sqm * payload.estimated_market_price_per_sqm
     total_investment = payload.minimum_bid + payload.renovation_cost + payload.other_costs
     gross_annual_rent = payload.expected_monthly_rent * 12
+    gross_margin = estimated_market_value - total_investment
 
     discount = 0.0
     if estimated_market_value:
         discount = (estimated_market_value - total_investment) / estimated_market_value * 100
+
+    gross_roi = 0.0
+    if total_investment:
+        gross_roi = gross_margin / total_investment * 100
 
     gross_yield = 0.0
     if total_investment:
@@ -73,10 +78,13 @@ def valuate_auction(payload: AuctionValuationRequest) -> AuctionValuationRespons
         total_investment=round(total_investment, 2),
         estimated_market_value=round(estimated_market_value, 2),
         discount_percent=round(discount, 2),
+        gross_margin=round(gross_margin, 2),
+        gross_roi_percent=round(gross_roi, 2),
         gross_annual_rent=round(gross_annual_rent, 2),
         gross_yield_percent=round(gross_yield, 2),
         score=score,
         recommendation=_recommend(score),
         risk_level=_risk_level(risk_penalty),
+        confidence="media",
         notes=notes,
     )
